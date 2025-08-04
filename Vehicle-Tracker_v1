@@ -1,0 +1,425 @@
+#include <Wire.h>
+#include <MPU6050.h>
+#include <HardwareSerial.h>
+#include <TinyGPSPlus.h>
+
+TinyGPSPlus gpsParser;
+
+#define GNSS_RX 38
+#define GNSS_TX 39
+#define LTE_RX 40
+#define LTE_TX 41
+#define P_EN 2
+#define RST 1
+#define RESPONSE_TIMEOUT 3000
+MPU6050 mpu(0x69);
+HardwareSerial GNSS(1);  // UART1
+HardwareSerial LTE(2);   // UART2
+
+const char* THINGSBOARD_HOST = "thingsboard.cloud";
+const char* TOKEN = "fJJ4e4r6aaJW5RLsA2AA";
+// curl -v -X POST http://thingsboard.cloud/api/v1/fJJ4e4r6aaJW5RLsA2AA/telemetry --header Content-Type:application/json --data "{temperature:25}"
+// Sensitivity factors (set these according to your MPU config)
+float accelSensitivity = 16384.0;  // For ±2g
+float gyroSensitivity = 131.0;     // For ±250 °/s
+
+// Convert raw data to physical units
+float ax_g = 0;
+float ay_g = 0;
+float az_g = 0;
+
+float gx_dps = 0;
+float gy_dps = 0;
+float gz_dps = 0;
+
+float lat = 0;
+float lng = 0;
+float alt = 0;
+float spd = 0;
+float crs = 0;
+int sats = 0;
+int hdop = 0;
+
+int myday = 0;
+int mymonth = 0;
+int myyear = 0;
+int myhour = 0;
+int mymin = 0;
+int mysec = 0;
+
+// Get temperature in Celsius
+float tempC = 0;
+
+String simICCID = "";
+String imeiNumber = "";
+String signalPercent = "";
+
+// Shared sensor data
+String GNSS_data = "";
+String accel_data = "";
+String gyro_data = "";
+
+// RTOS task handles
+TaskHandle_t mpuTaskHandle;
+TaskHandle_t gnssTaskHandle;
+TaskHandle_t sendTaskHandle;
+
+// Mutex for shared data access
+SemaphoreHandle_t dataMutex;
+
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+
+  pinMode(P_EN, OUTPUT);
+  pinMode(RST, OUTPUT);
+  digitalWrite(P_EN, HIGH);
+  digitalWrite(RST, LOW);
+  delay(500);
+  digitalWrite(P_EN, LOW);
+
+  Wire.begin(8, 9);
+  mpu.initialize();
+  if (!mpu.testConnection()) {
+    Serial.println("❌ MPU6050 not connected.");
+    esp_restart();
+    while (1)
+      ;
+  }
+
+  GNSS.begin(9600, SERIAL_8N1, GNSS_RX, GNSS_TX);
+  LTE.begin(115200, SERIAL_8N1, LTE_RX, LTE_TX);
+
+  // Optional: Enable all standard NMEA sentences (GGA, RMC, GSA, GSV)
+  GNSS.print("$PSTMNMEACONFIG,1,1,1,1,1,1,1,1,1,1*36\r\n");
+  delay(100);
+
+  dataMutex = xSemaphoreCreateMutex();
+
+  setupLTE();
+
+  // Create FreeRTOS tasks
+  xTaskCreatePinnedToCore(readMPUTask, "MPU Task", 4096, NULL, 1, &mpuTaskHandle, 1);
+  xTaskCreatePinnedToCore(readGNSSTask, "GNSS Task", 4096, NULL, 1, &gnssTaskHandle, 1);
+  xTaskCreatePinnedToCore(sendDataTask, "Send Task", 8192, NULL, 1, &sendTaskHandle, 0);
+}
+
+void loop() {
+  // Nothing here – tasks are running independently
+}
+
+// ──────── MPU Task ────────
+void readMPUTask(void* param) {
+  while (1) {
+    int16_t ax, ay, az, gx, gy, gz;
+    mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+    xSemaphoreTake(dataMutex, portMAX_DELAY);
+    // Convert raw data to physical units
+    ax_g = ax / accelSensitivity;
+    ay_g = ay / accelSensitivity;
+    az_g = az / accelSensitivity;
+
+    gx_dps = gx / gyroSensitivity;
+    gy_dps = gy / gyroSensitivity;
+    gz_dps = gz / gyroSensitivity;
+
+    // Get temperature in Celsius
+    tempC = mpu.getTemperature() / 340.0 + 36.53;
+    xSemaphoreGive(dataMutex);
+
+    vTaskDelay(pdMS_TO_TICKS(100));  // 100ms interval
+  }
+}
+
+// ──────── GNSS Task ────────
+void readGNSSTask(void* param) {
+  while (1) {
+    while (GNSS.available()) {
+      char c = GNSS.read();
+      gpsParser.encode(c);
+      Serial.write(c);  // Optional: Print raw NMEA
+    }
+
+    if (gpsParser.location.isUpdated()) {
+      xSemaphoreTake(dataMutex, portMAX_DELAY);
+      lat = gpsParser.location.lat();
+      lng = gpsParser.location.lng();
+      alt = gpsParser.altitude.meters();
+      spd = gpsParser.speed.kmph();
+      crs = gpsParser.course.deg();
+      sats = gpsParser.satellites.value();
+      hdop = gpsParser.hdop.hdop();
+
+      myday = gpsParser.date.day();
+      mymonth = gpsParser.date.month();
+      myyear = gpsParser.date.year();
+      myhour = gpsParser.time.hour();
+      mymin = gpsParser.time.minute();
+      mysec = gpsParser.time.second();
+
+      xSemaphoreGive(dataMutex);
+
+      Serial.println("📍 GNSS Full Data: " + GNSS_data);
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(2000));
+  }
+}
+
+// ──────── Send Task ────────
+void sendDataTask(void* param) {
+  while (1) {
+    // Suspend GNSS to avoid serial conflict
+    vTaskSuspend(gnssTaskHandle);
+
+    while (LTE.available()) LTE.read();
+
+    LTE.println("AT+CSQ");
+    delay(200);
+
+    while (LTE.available()) {
+      String line = LTE.readStringUntil('\n');
+      line.trim();
+
+      if (line.startsWith("+CSQ:")) {
+        int commaIndex = line.indexOf(',');
+        int rssiVal = line.substring(6, commaIndex).toInt();
+
+        // Convert RSSI to percentage
+        int percent = 0;
+        if (rssiVal >= 0 && rssiVal <= 31) {
+          percent = (rssiVal * 100) / 31;
+        }
+
+        signalPercent = String(percent) + "%";
+        break;
+      }
+    }
+    xSemaphoreTake(dataMutex, portMAX_DELAY);
+
+    String json = "{";
+
+    // Accelerometer (g)
+    json += "\"accel_x_g\":" + String(ax_g, 3) + ",";
+    json += "\"accel_y_g\":" + String(ay_g, 3) + ",";
+    json += "\"accel_z_g\":" + String(az_g, 3) + ",";
+
+    // Gyroscope (°/s)
+    json += "\"gyro_x_dps\":" + String(gx_dps, 3) + ",";
+    json += "\"gyro_y_dps\":" + String(gy_dps, 3) + ",";
+    json += "\"gyro_z_dps\":" + String(gz_dps, 3) + ",";
+
+    // Temperature
+    json += "\"temperature_C\":" + String(tempC, 2) + ",";
+
+    // GNSS Data
+    json += "\"latitude\":" + String(lat, 6) + ",";
+    json += "\"longitude\":" + String(lng, 6) + ",";
+    json += "\"altitude_m\":" + String(alt, 2) + ",";
+    json += "\"speed_kmph\":" + String(spd, 2) + ",";
+    json += "\"course_deg\":" + String(crs, 2) + ",";
+    json += "\"satellites\":" + String(sats) + ",";
+    json += "\"hdop\":" + String(hdop) + ",";
+    json += "\"date\":\"" + String(myyear) + "-" + String(mymonth) + "-" + String(myday) + "\",";
+    json += "\"time\":\"" + String(myhour) + ":" + String(mymin) + ":" + String(mysec) + "\",";
+
+    // LTE Modem Data
+    json += "\"imei\":\"" + imeiNumber + "\",";
+    json += "\"sim_iccid\":\"" + simICCID + "\",";
+
+    json += "\"signal_strength\":\"" + signalPercent + "\"";
+
+    json += "}";
+
+    xSemaphoreGive(dataMutex);
+
+    String url = "http://" + String(THINGSBOARD_HOST) + "/api/v1/" + String(TOKEN) + "/telemetry";
+
+    Serial.println("🌐 Sending JSON:");
+    Serial.println(json);
+
+    DATA_TO_CLOUD(url, json);
+
+    vTaskResume(gnssTaskHandle);
+
+    vTaskDelay(pdMS_TO_TICKS(10000));  // Send every 10 seconds
+  }
+}
+
+
+
+void setupLTE() {
+  Serial.println("🔌 Powering on LTE module...");
+  WAIT_4_RESPONSE("RDY", 10000);
+  LTE.println("AT");
+  WAIT_4_RESPONSE("OK", 1000);
+  Serial.println("📶 Checking SIM...");
+  LTE.println("AT+CPIN?");
+  if (WAIT_4_RESPONSE("+CPIN: READY", 1000)) {
+    Serial.println("✅ SIM ready.");
+  } else {
+    Serial.println("❌ SIM not ready.");
+    esp_restart();
+    while (1)
+      ;
+  }
+  for (int i = 0; i < 5; i++) {
+    LTE.println("AT+CREG?");
+    unsigned long t = millis();
+    String cregResp = "";
+
+    while (millis() - t < 1000) {
+      while (LTE.available()) {
+        char c = LTE.read();
+        cregResp += c;
+      }
+    }
+    if (cregResp.indexOf("+CREG: 0,1") != -1 || cregResp.indexOf("+CREG: 0,5") != -1) {
+      Serial.println("Network registered");
+      break;
+    } else {
+      Serial.println("Waiting for network...");
+      delay(1000);
+    }
+    if (i == 4) {
+      Serial.println("Network registration timeout");
+      // return 0;
+    }
+  }
+  LTE.println("AT+CGACT=0,1");
+  WAIT_4_RESPONSE("OK", 1000);
+  LTE.println("AT+CGDCONT=1,\"IP\",\"airtelgprs.com\"");
+  WAIT_4_RESPONSE("OK", 1000);
+  LTE.println("AT+CGACT=1,1");
+  WAIT_4_RESPONSE("OK", 1000);
+  LTE.println("AT+QHTTPCFG=\"contextid\",1");
+  WAIT_4_RESPONSE("OK", 1000);
+  LTE.println("AT+QHTTPCFG=\"responseheader\",1");
+  WAIT_4_RESPONSE("OK", 1000);
+
+  while (LTE.available()) LTE.read();
+  // === Get SIM ICCID ===
+  LTE.println("AT+CCID");
+  delay(200);
+  while (LTE.available()) {
+    String line = LTE.readStringUntil('\n');
+    line.trim();
+    if (line.startsWith("+CCID:")) {
+      simICCID = line.substring(7);  // Extract ICCID part
+    }
+  }
+  // === Get IMEI ===
+  LTE.println("AT+CGSN");
+  delay(200);
+  while (LTE.available()) {
+    String line = LTE.readStringUntil('\n');
+    line.trim();
+    // IMEI is usually a 15-digit number with no prefix
+    if (line.length() >= 15 && isDigit(line[0])) {
+      imeiNumber = line;
+      break;
+    }
+  }
+}
+
+bool GET_RESPONSE(const String& expected, int iteration) {
+  unsigned long start = millis();
+  String response = "";
+  int timeout = RESPONSE_TIMEOUT * iteration;
+
+  while (millis() - start < timeout) {
+    if (LTE.available()) {
+      String line = LTE.readStringUntil('\n');
+      line.trim();
+      Serial.println(line);  // Optional debug
+
+      // Check for expected success response
+      if (line.indexOf(expected) != -1) {
+        Serial.println("Operation successful: " + expected);
+        return true;
+      }
+
+      // Generic error pattern for HTTP status (for QHTTPPUTFILE, QHTTPGET etc.)
+      if (line.startsWith("+QHTTP") && line.indexOf(",") != -1) {
+        int codeStart = line.lastIndexOf(',') + 1;
+        int statusCode = line.substring(codeStart).toInt();
+        Serial.printf("HTTP operation failed with status: %d\n", statusCode);
+        return false;
+      }
+
+      if (line.startsWith("ERROR")) {
+        Serial.println("AT command error during operation: " + line);
+        return false;
+      }
+    }
+    yield();  // Allow background tasks
+  }
+
+  Serial.println("Timeout waiting for expected response: " + expected);
+  return false;
+}
+
+bool WAIT_4_RESPONSE(String expected, int timeout) {
+  String line = "";
+  unsigned long endTime = millis() + timeout;
+
+  // Flush preexisting garbage
+  while (LTE.available()) LTE.read();
+  while (millis() < endTime) {
+    while (LTE.available()) {
+      char c = LTE.read();
+      Serial.write(c);          // Optional: keep if you want to see raw output
+      if (c == '\r') continue;  // skip CR
+      if (c == '\n') {
+        line.trim();
+        if (line == expected) {
+          Serial.println("Matched: " + expected);  // Optional
+          return true;
+        }
+        line = "";
+      } else {
+        line += c;
+      }
+    }
+  }
+  // Serial.println("Timeout waiting for: " + expected);  // Optional
+  return false;
+}
+
+
+void DATA_TO_CLOUD(String url, String postData) {
+  int inc = 0;
+  while (inc < 3) {
+    inc++;
+
+    // Set content type
+    LTE.println("AT+QHTTPCFG=\"contenttype\",1");
+    if (!WAIT_4_RESPONSE("OK", 1000)) continue;
+
+    // Set URL
+    LTE.println("AT+QHTTPURL=" + String(url.length()) + ",80");
+    if (!WAIT_4_RESPONSE("CONNECT", 3000)) continue;
+
+    LTE.print(url);  // 🔥 Use print, not println
+    if (!WAIT_4_RESPONSE("OK", 3000)) continue;
+
+    // Send POST data
+    LTE.println("AT+QHTTPPOST=" + String(postData.length()) + ",80,80");
+    if (!WAIT_4_RESPONSE("CONNECT", 5000)) continue;
+
+    LTE.print(postData);
+    if (!WAIT_4_RESPONSE("OK", 3000)) continue;
+
+    Serial.println("Waiting for +QHTTPPOST response...");
+    if (GET_RESPONSE("+QHTTPPOST: 0,200", 1)) {
+      Serial.println("✅ DATA Sent Successfully");
+
+      // Read HTTP response (optional)
+      LTE.println("AT+QHTTPREAD=80");
+      WAIT_4_RESPONSE("OK", 3000);
+    } else {
+      Serial.println("❌ POST failed.");
+    }
+    break;
+  }
+}
