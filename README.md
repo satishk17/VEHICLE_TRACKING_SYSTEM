@@ -1,11 +1,11 @@
 # 🚗 Vehicle Tracking System (VTS) with ESP32-S3 + EC200U-CN + L89 GNSS + MPU6050 + ThingsBoard
 A real-time, FreeRTOS-based Vehicle Tracking System (VTS) that integrates:
 
-🛰️ Quectel L89 GNSS module for precise GPS location
-📈 MPU6050 for 6-axis motion sensing (accelerometer + gyroscope)
-📡 Quectel EC200U-CN LTE module for HTTP cloud communication
-🔁 FreeRTOS tasks with mutex-protected data access
-☁️ Cloud connectivity to ThingsBoard IoT platform
+- 🛰️ Quectel L89 GNSS module for precise GPS location
+- 📈 MPU6050 for 6-axis motion sensing (accelerometer + gyroscope)
+- 📡 Quectel EC200U-CN LTE module for HTTP cloud communication
+- 🔁 FreeRTOS tasks with mutex-protected data access
+- ☁️ Cloud connectivity to ThingsBoard IoT platform
 
 # ✅ Features
 📍 Real-time location via GNSS (latitude, longitude, altitude, speed, heading, satellites)
