@@ -93,11 +93,8 @@ Edit
 bash
 Copy
 Edit
-/vehicle-tracker/
-├── main.ino            # Main firmware (FreeRTOS-based)
-├── README.md           # Project overview
-├── hardware/           # Schematics, datasheets (optional)
-└── extras/             # Optional OBD or CAN docs
+- /vehicle-tracker/
+- ├── main.ino            # Main firmware (FreeRTOS-based)
 
 # 🔮 Future Improvements
 - ⚙️ Add OBD-II vehicle speed, fuel data via CAN/UART
