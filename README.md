@@ -2,31 +2,21 @@
 A real-time, FreeRTOS-based Vehicle Tracking System (VTS) that integrates:
 
 🛰️ Quectel L89 GNSS module for precise GPS location
-
 📈 MPU6050 for 6-axis motion sensing (accelerometer + gyroscope)
-
 📡 Quectel EC200U-CN LTE module for HTTP cloud communication
-
 🔁 FreeRTOS tasks with mutex-protected data access
-
 ☁️ Cloud connectivity to ThingsBoard IoT platform
 
-✅ Features
+# ✅ Features
 📍 Real-time location via GNSS (latitude, longitude, altitude, speed, heading, satellites)
-
 📐 Motion data (acceleration, rotation) from MPU6050
-
 🌡️ Onboard temperature from MPU6050 sensor
-
 🔒 FreeRTOS-based task architecture with shared data protection
-
 📶 LTE signal strength, ICCID, and IMEI extraction
-
 ☁️ Periodic telemetry upload to ThingsBoard via HTTP JSON
-
 🔁 GNSS/LTE conflict avoidance using task suspension
 
-🧩 Hardware Requirements
+# 🧩 Hardware Requirements
 Component	Description
 ESP32-S3	Dual-core MCU with FreeRTOS support
 EC200U-CN	Quectel LTE Cat-1 Module (UART-based)
@@ -34,7 +24,7 @@ L89 GNSS	Quectel GNSS Module (UART-based)
 MPU6050	6-axis Accelerometer + Gyroscope (I2C)
 (Optional)	CAN/OBD-II interface for vehicle data
 
-📐 Wiring Summary
+# 📐 Wiring Summary
 Peripheral	ESP32 GPIOs
 MPU6050 (I2C)	SDA = GPIO8, SCL = GPIO9
 GNSS (UART1)	RX = GPIO38, TX = GPIO39
@@ -42,7 +32,7 @@ LTE (UART2)	RX = GPIO40, TX = GPIO41
 LTE PWR_EN	GPIO2
 LTE RESET	GPIO1
 
-🔄 Data Format (JSON)
+# 🔄 Data Format (JSON)
 json
 Copy
 Edit
@@ -108,16 +98,14 @@ Edit
 ├── README.md           # Project overview
 ├── hardware/           # Schematics, datasheets (optional)
 └── extras/             # Optional OBD or CAN docs
-🔮 Future Improvements
+
+# 🔮 Future Improvements
 ⚙️ Add OBD-II vehicle speed, fuel data via CAN/UART
-
 📦 Store data offline and upload later if LTE fails
-
 🔋 Add deep sleep and wake triggers for power saving
-
 🗺️ Dashboard for map + telemetry + movement graphs
 
-👨‍💻 Author
-Your Name
+# 👨‍💻 Author
+SATISH KATTI
 Embedded Systems & IoT Developer
 GitHub | LinkedIn
