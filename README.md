@@ -8,21 +8,21 @@ A real-time, FreeRTOS-based Vehicle Tracking System (VTS) that integrates:
 - ☁️ Cloud connectivity to ThingsBoard IoT platform
 
 # ✅ Features
-📍 Real-time location via GNSS (latitude, longitude, altitude, speed, heading, satellites)
-📐 Motion data (acceleration, rotation) from MPU6050
-🌡️ Onboard temperature from MPU6050 sensor
-🔒 FreeRTOS-based task architecture with shared data protection
-📶 LTE signal strength, ICCID, and IMEI extraction
-☁️ Periodic telemetry upload to ThingsBoard via HTTP JSON
-🔁 GNSS/LTE conflict avoidance using task suspension
+- 📍 Real-time location via GNSS (latitude, longitude, altitude, speed, heading, satellites)
+- 📐 Motion data (acceleration, rotation) from MPU6050
+- 🌡️ Onboard temperature from MPU6050 sensor
+- 🔒 FreeRTOS-based task architecture with shared data protection
+- 📶 LTE signal strength, ICCID, and IMEI extraction
+- ☁️ Periodic telemetry upload to ThingsBoard via HTTP JSON
+- 🔁 GNSS/LTE conflict avoidance using task suspension
 
 # 🧩 Hardware Requirements
 Component	Description
-ESP32-S3	Dual-core MCU with FreeRTOS support
-EC200U-CN	Quectel LTE Cat-1 Module (UART-based)
-L89 GNSS	Quectel GNSS Module (UART-based)
-MPU6050	6-axis Accelerometer + Gyroscope (I2C)
-(Optional)	CAN/OBD-II interface for vehicle data
+- ESP32-S3	Dual-core MCU with FreeRTOS support
+- EC200U-CN	Quectel LTE Cat-1 Module (UART-based)
+- L89 GNSS	Quectel GNSS Module (UART-based)
+- MPU6050	6-axis Accelerometer + Gyroscope (I2C)
+- (Optional)	CAN/OBD-II interface for vehicle data
 
 # 📐 Wiring Summary
 Peripheral	ESP32 GPIOs
