@@ -106,6 +106,6 @@ Edit
 - 🗺️ Dashboard for map + telemetry + movement graphs
 
 # 👨‍💻 Author
-SATISH KATTI
-Embedded Systems & IoT Developer
-GitHub | LinkedIn
+- SATISH KATTI
+- Embedded Systems & IoT Developer
+- GitHub | LinkedIn
