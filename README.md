@@ -108,4 +108,4 @@ Edit
 # 👨‍💻 Author
 - SATISH KATTI
 - Embedded Systems & IoT Developer
-- GitHub | LinkedIn
+- [GitHub](https://github.com/satishk17) | [LinkedIn](https://www.linkedin.com/in/satish-katti-576150241/)
