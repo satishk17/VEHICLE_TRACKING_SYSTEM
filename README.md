@@ -102,7 +102,11 @@ Edit
 - 🔋 Add deep sleep and wake triggers for power saving
 - 🗺️ Dashboard for map + telemetry + movement graphs
 
+<img width="1912" height="941" alt="image" src="https://github.com/user-attachments/assets/10bcf9ea-1525-4f20-a41f-f6b2f2c326f9" />
+
+
 # 👨‍💻 Author
 - SATISH KATTI
 - Embedded Systems & IoT Developer
 - [GitHub](https://github.com/satishk17) | [LinkedIn](https://www.linkedin.com/in/satish-katti-576150241/)
+
