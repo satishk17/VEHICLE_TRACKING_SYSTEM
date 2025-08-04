@@ -100,10 +100,10 @@ Edit
 └── extras/             # Optional OBD or CAN docs
 
 # 🔮 Future Improvements
-⚙️ Add OBD-II vehicle speed, fuel data via CAN/UART
-📦 Store data offline and upload later if LTE fails
-🔋 Add deep sleep and wake triggers for power saving
-🗺️ Dashboard for map + telemetry + movement graphs
+- ⚙️ Add OBD-II vehicle speed, fuel data via CAN/UART
+- 📦 Store data offline and upload later if LTE fails
+- 🔋 Add deep sleep and wake triggers for power saving
+- 🗺️ Dashboard for map + telemetry + movement graphs
 
 # 👨‍💻 Author
 SATISH KATTI
